@@ -2,32 +2,47 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Book Scanner</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
         .shutter-button {
-            border: 4px solid white;
-            width: 70px;
-            height: 70px;
+            border: 5px solid white;
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
-            background-color: #f5f5f5;
+            background-color: rgba(245, 245, 245, 0.8);
             cursor: pointer;
             transition: background-color 0.2s, transform 0.2s;
             outline: none;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            color: #333;
+            font-size: 2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .shutter-button:active {
             background-color: #ddd;
             transform: scale(0.95);
         }
-        /* Removed the mirror effect from the video feed */
         #video {
-            /* transform: scaleX(-1); */
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: -1;
         }
         /* Toggle Switch Styles */
         .toggle-checkbox:checked {
@@ -37,12 +52,16 @@
         .toggle-checkbox:checked + .toggle-label {
             background-color: #4A90E2;
         }
+        /* Modal Styles */
+        #info-modal {
+            transition: opacity 0.3s ease;
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="bg-black text-gray-800">
 
     <!-- Lot Number Entry Screen -->
-    <div id="lot-entry-screen" class="container mx-auto p-4 max-w-md h-screen flex items-center justify-center">
+    <div id="lot-entry-screen" class="container mx-auto p-4 max-w-md h-full flex items-center justify-center">
         <div class="bg-white p-8 rounded-xl shadow-lg w-full">
             <h1 class="text-3xl font-bold text-center text-blue-600 mb-2">Book Scanner</h1>
             <p class="text-center text-gray-600 mb-6">Enter the lot number to begin scanning.</p>
@@ -65,42 +84,58 @@
     </div>
 
     <!-- Main Scanning Screen -->
-    <div id="scanning-screen" class="container mx-auto p-4 max-w-2xl" style="display: none;">
-        <header class="text-center my-6 relative">
-            <h1 class="text-2xl font-bold">Lot: <span id="display-lot-number" class="text-blue-600"></span></h1>
-            <p class="text-lg text-gray-600">Scanning Book: <span id="book-counter-display" class="font-semibold">1</span></p>
-            <button id="new-lot-btn" class="absolute top-0 right-0 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg text-sm">
-                New Lot
+    <div id="scanning-screen" class="h-full w-full flex flex-col" style="display: none;">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        
+        <!-- Top Bar -->
+        <div class="absolute top-0 left-0 right-0 p-4 flex justify-end">
+             <button id="info-btn" class="bg-white/50 hover:bg-white/80 rounded-full p-2 shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
             </button>
-        </header>
+        </div>
 
-        <main>
-            <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
-                <div id="camera-container" class="text-center">
-                    <video id="video" class="w-full rounded-md border border-gray-300 mb-4" autoplay playsinline></video>
-                    <canvas id="canvas" style="display:none;"></canvas>
-                    <button id="snap" class="shutter-button mx-auto" aria-label="Take Picture"></button>
-                    <p id="page-counter" class="text-gray-600 mt-4 font-medium">Page 1 of 3</p>
-                </div>
-            </div>
+        <!-- Bottom Bar -->
+        <div class="absolute bottom-0 left-0 right-0 p-6 flex justify-center">
+            <button id="snap" class="shutter-button">1</button>
+        </div>
+    </div>
 
-            <div id="gallery" class="bg-white p-6 rounded-lg shadow-lg mb-6">
-                <h2 class="text-xl font-semibold mb-4 border-b pb-2">Current Book Pages</h2>
-                <div id="image-grid" class="grid grid-cols-3 gap-4">
-                    <!-- Thumbnails for the current book's pages will appear here -->
-                </div>
-                 <p id="no-images-text" class="text-gray-500">Scan 3 pages to create a PDF.</p>
+    <!-- Info Modal -->
+    <div id="info-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-gray-100 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h2 class="text-2xl font-bold">Session Info</h2>
+                <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800">&times;</button>
             </div>
             
-            <div id="completed-pdfs" class="bg-white p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-semibold mb-4 border-b pb-2">Completed PDFs in this Session</h2>
-                <ul id="pdf-list" class="list-disc list-inside text-gray-700">
-                    <!-- List of generated PDF filenames will appear here -->
-                </ul>
-                 <p id="no-pdfs-text" class="text-gray-500">No PDFs generated yet.</p>
+            <div class="mb-6">
+                 <h1 class="text-xl font-bold">Lot: <span id="display-lot-number" class="text-blue-600"></span></h1>
+                 <p class="text-md text-gray-600">Scanning Book: <span id="book-counter-display" class="font-semibold">1</span></p>
             </div>
-        </main>
+
+            <div id="gallery" class="bg-white p-4 rounded-lg shadow-inner mb-6">
+                <h3 class="text-lg font-semibold mb-3">Current Book Pages</h3>
+                <div id="image-grid" class="grid grid-cols-3 gap-2"></div>
+                <p id="no-images-text" class="text-gray-500 text-sm">Scan 3 pages to create a PDF.</p>
+            </div>
+            
+            <div id="completed-pdfs" class="bg-white p-4 rounded-lg shadow-inner">
+                <h3 class="text-lg font-semibold mb-3">Completed PDFs</h3>
+                <ul id="pdf-list" class="list-disc list-inside text-gray-700 text-sm"></ul>
+                <p id="no-pdfs-text" class="text-gray-500 text-sm">No PDFs generated yet.</p>
+            </div>
+
+            <div class="mt-6">
+                <button id="new-lot-btn" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-lg">
+                    Start New Lot
+                </button>
+            </div>
+        </div>
     </div>
+
 
     <script>
         // DOM Elements
@@ -114,12 +149,15 @@
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const snapBtn = document.getElementById('snap');
-        const pageCounter = document.getElementById('page-counter');
         const imageGrid = document.getElementById('image-grid');
         const noImagesText = document.getElementById('no-images-text');
         const pdfList = document.getElementById('pdf-list');
         const noPdfsText = document.getElementById('no-pdfs-text');
         const newLotBtn = document.getElementById('new-lot-btn');
+        const infoBtn = document.getElementById('info-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const infoModal = document.getElementById('info-modal');
+
 
         // App State
         let lotNumber = '';
@@ -138,9 +176,9 @@
             const inputLot = lotNumberInput.value.trim();
             if (inputLot) {
                 lotNumber = inputLot;
-                displayLotNumber.textContent = lotNumber;
+                document.getElementById('display-lot-number').textContent = lotNumber;
                 lotEntryScreen.style.display = 'none';
-                scanningScreen.style.display = 'block';
+                scanningScreen.style.display = 'flex';
                 startCamera();
             } else {
                 alert('Please enter a lot number.');
@@ -151,12 +189,31 @@
             location.reload();
         });
 
+        infoBtn.addEventListener('click', () => {
+            infoModal.classList.remove('hidden');
+        });
+        closeModalBtn.addEventListener('click', () => {
+            infoModal.classList.add('hidden');
+        });
+        infoModal.addEventListener('click', (e) => {
+            if (e.target === infoModal) {
+                 infoModal.classList.add('hidden');
+            }
+        });
+
+
         async function startCamera() {
             try {
                 if (stream) {
                     stream.getTracks().forEach(track => track.stop());
                 }
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 4096 }, // Request higher resolution
+                        height: { ideal: 2160 }
+                    } 
+                });
                 video.srcObject = stream;
             } catch (err) {
                 console.error("Error accessing camera: ", err);
@@ -172,37 +229,37 @@
             canvas.height = video.videoHeight;
             const context = canvas.getContext('2d');
             
-            // Draw the image directly from the video feed without mirroring
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             if (isBlackAndWhiteMode) {
-                // Convert the captured image to high-contrast black and white
                 const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
                 const data = imageData.data;
-                const threshold = 128; // Adjust this value (0-255) to change the black/white cutoff
+                const threshold = 128;
                 for (let i = 0; i < data.length; i += 4) {
-                    // A weighted average (luminosity method) for better grayscale conversion
                     const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-                    const color = luminance < threshold ? 0 : 255; // Set to black or white
-                    data[i] = color; // red
-                    data[i + 1] = color; // green
-                    data[i + 2] = color; // blue
+                    const color = luminance < threshold ? 0 : 255;
+                    data[i] = color;
+                    data[i + 1] = color;
+                    data[i + 2] = color;
                 }
                 context.putImageData(imageData, 0, 0);
             }
 
-            const dataUrl = canvas.toDataURL('image/jpeg');
+            // Use maximum quality for JPEG
+            const dataUrl = canvas.toDataURL('image/jpeg', 1.0);
             currentBookPages.push(dataUrl);
             updateGallery();
 
             if (currentBookPages.length === 3) {
-                setTimeout(generatePdfForCurrentBook, 500); // Give user a moment to see the 3rd image
+                setTimeout(generatePdfForCurrentBook, 500);
             }
         });
 
         // --- UI Updates ---
         function updateGallery() {
             imageGrid.innerHTML = '';
+            const pageNumber = currentBookPages.length + 1;
+            
             if (currentBookPages.length > 0) {
                 noImagesText.style.display = 'none';
             } else {
@@ -212,16 +269,16 @@
             currentBookPages.forEach(src => {
                 const img = document.createElement('img');
                 img.src = src;
-                img.className = 'w-full h-auto rounded-md shadow-md';
+                img.className = 'w-full h-auto rounded-md shadow-sm';
                 imageGrid.appendChild(img);
             });
             
-            pageCounter.textContent = `Page ${currentBookPages.length + 1} of 3`;
-             if (currentBookPages.length >= 3) {
-                pageCounter.textContent = "Processing PDF...";
+             if (pageNumber > 3) {
+                snapBtn.textContent = "✓";
                 snapBtn.disabled = true;
             } else {
-                 snapBtn.disabled = false;
+                snapBtn.textContent = pageNumber;
+                snapBtn.disabled = false;
             }
         }
 
@@ -272,7 +329,7 @@
         function resetForNextBook() {
             bookCounter++;
             currentBookPages = [];
-            bookCounterDisplay.textContent = bookCounter;
+            document.getElementById('book-counter-display').textContent = bookCounter;
             updateGallery();
         }
 
