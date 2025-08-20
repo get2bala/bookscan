@@ -25,8 +25,9 @@
             background-color: #ddd;
             transform: scale(0.95);
         }
+        /* Removed the mirror effect from the video feed */
         #video {
-            transform: scaleX(-1); /* Mirror the video feed */
+            /* transform: scaleX(-1); */
         }
         /* Toggle Switch Styles */
         .toggle-checkbox:checked {
@@ -171,9 +172,7 @@
             canvas.height = video.videoHeight;
             const context = canvas.getContext('2d');
             
-            // Flip the image from the mirrored video feed back to normal
-            context.translate(canvas.width, 0);
-            context.scale(-1, 1);
+            // Draw the image directly from the video feed without mirroring
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             if (isBlackAndWhiteMode) {
